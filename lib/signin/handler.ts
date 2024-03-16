@@ -28,5 +28,8 @@ export const handler = async (event: { body: string }): Promise<{ statusCode: nu
     return Promise.resolve({ statusCode: 401, body: 'Authentication failed' });
   }
 
-  return { statusCode: 200, body: idToken };
+  return { 
+    statusCode: 200, 
+    body: idToken
+  };
 };
