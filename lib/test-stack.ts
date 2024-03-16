@@ -24,7 +24,11 @@ export class DmeenApp extends cdk.Stack {
     // ------  DynamoDB  ------
     const usersTable = new cdk.aws_dynamodb.Table(this, 'User', {
       partitionKey: {
-        name: 'PK',
+        name: 'PK', // userId
+        type: cdk.aws_dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'SK', // username
         type: cdk.aws_dynamodb.AttributeType.STRING,
       },
       billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -35,7 +39,11 @@ export class DmeenApp extends cdk.Stack {
     const secretLambda = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'secret', {
       entry: path.join(__dirname, 'secret', 'handler.ts'),
       handler: 'handler',
+      environment: {
+        USER_TABLE_NAME: usersTable.tableName
+      },
     });
+    usersTable.grantReadData(secretLambda); // VERY IMPORTANT
 
     // Provision a signup lambda function
     const signup = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'signup', {
