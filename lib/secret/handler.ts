@@ -19,8 +19,13 @@ export const handler = async (event: any) => {
     }),
   );
 
+  if (Item) {
+    const newToken: number = Item.token - 1;
+    Item.token = { N: newToken }; // Update field1
+  }
+
   return {
       statusCode: 200,
-      body: Item
+      body: newToken
   };
 };

@@ -1,4 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
 import { Construct } from 'constructs';
 import path from 'path';
 
@@ -33,12 +34,34 @@ export class DmeenApp extends cdk.Stack {
       },
       billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST,
     });   
+
+    const flagsTable = new cdk.aws_dynamodb.Table(this, 'Flag', {
+      partitionKey: {
+        name: 'PK', // flagId
+        type: cdk.aws_dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'SK', // group_name
+        type: cdk.aws_dynamodb.AttributeType.STRING,
+      },
+      billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST,
+    });   
     
 
     // ------  Lambda Functions  ------
-    const secretLambda = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'secret', {
-      entry: path.join(__dirname, 'secret', 'handler.ts'),
+    const listGroup = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'listGroup', {
+      entry: path.join(__dirname, 'listGroup', 'handler.ts'),
       handler: 'handler',
+      environment: {
+        FLAG_TABLE_NAME: flagsTable.tableName
+      },
+    });
+    flagsTable.grantReadData(listGroup); // VERY IMPORTANT
+
+    const secretLambda = new lambda.Function(this, 'secretPy', {
+      runtime: lambda.Runtime.PYTHON_3_8,
+      handler: 'handler.handler', // Assumes your handler function is named 'handler' in a file named handler.py
+      code: lambda.Code.fromAsset(path.join(__dirname, 'secretPy')),
       environment: {
         USER_TABLE_NAME: usersTable.tableName
       },
@@ -114,6 +137,8 @@ export class DmeenApp extends cdk.Stack {
     authResource.addResource('sign-up').addMethod('POST', new cdk.aws_apigateway.LambdaIntegration(signup));
     authResource.addResource('sign-in').addMethod('POST', new cdk.aws_apigateway.LambdaIntegration(signin));
     authResource.addResource('confirm').addMethod('POST', new cdk.aws_apigateway.LambdaIntegration(confirm));
+
+    DmeenApi.root.addResource('listGroup').addMethod('GET', new cdk.aws_apigateway.LambdaIntegration(listGroup));
     // Create a new secret route, triggering the secret Lambda, and protected by the authorizer
     DmeenApi.root.addResource('secret').addMethod('GET', new cdk.aws_apigateway.LambdaIntegration(secretLambda), {
       authorizer,
