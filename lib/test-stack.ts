@@ -1,4 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
+import { RemovalPolicy } from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import { Construct } from 'constructs';
 import path from 'path';
@@ -21,6 +22,9 @@ export class DmeenApp extends cdk.Stack {
         userPassword: true,
       },
     });
+
+    // ------ S3 Bucket -------
+    const promptBucket = new cdk.aws_s3.Bucket(this, 'promptBucket', {});
 
     // ------  DynamoDB  ------
     const usersTable = new cdk.aws_dynamodb.Table(this, 'User', {
@@ -45,28 +49,73 @@ export class DmeenApp extends cdk.Stack {
         type: cdk.aws_dynamodb.AttributeType.STRING,
       },
       billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST,
-    });   
+    });  
+    
+    const promptTable = new cdk.aws_dynamodb.Table(this, 'Prompt', {
+      partitionKey: {
+        name: 'PK', // version
+        type: cdk.aws_dynamodb.AttributeType.STRING,
+      },
+      billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST,
+    });  
+
+    const postRecordTable = new cdk.aws_dynamodb.Table(this, 'PostRecord', {
+      partitionKey: {
+        name: 'PK', // postId
+        type: cdk.aws_dynamodb.AttributeType.STRING,
+      },
+      billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST,
+    }); 
     
 
     // ------  Lambda Functions  ------
-    const listGroup = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'listGroup', {
-      entry: path.join(__dirname, 'listGroup', 'handler.ts'),
+    const listGroups = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'listGroups', {
+      entry: path.join(__dirname, 'listGroups', 'handler.ts'),
       handler: 'handler',
       environment: {
         FLAG_TABLE_NAME: flagsTable.tableName
       },
     });
-    flagsTable.grantReadData(listGroup); // VERY IMPORTANT
+    flagsTable.grantReadData(listGroups); // VERY IMPORTANT
 
-    const secretLambda = new lambda.Function(this, 'secretPy', {
-      runtime: lambda.Runtime.PYTHON_3_8,
-      handler: 'handler.handler', // Assumes your handler function is named 'handler' in a file named handler.py
-      code: lambda.Code.fromAsset(path.join(__dirname, 'secretPy')),
+    const secretLambda = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'secret', {
+      entry: path.join(__dirname, 'secret', 'handler.ts'),
+      handler: 'handler',
       environment: {
-        USER_TABLE_NAME: usersTable.tableName
+        USER_TABLE_NAME: usersTable.tableName,
+        BUCKET_NAME: promptBucket.bucketName,
       },
     });
     usersTable.grantReadData(secretLambda); // VERY IMPORTANT
+    promptBucket.grantRead(secretLambda);
+    promptBucket.grantWrite(secretLambda);
+
+    const logicLayer = new lambda.LayerVersion(this, 'python-lib', {
+      removalPolicy: RemovalPolicy.RETAIN,
+      code: lambda.Code.fromAsset(path.join(__dirname, 'extract')),
+      // compatibleArchitectures: [lambda.Architecture.X86_64, lambda.Architecture.ARM_64],
+      compatibleRuntimes: [lambda.Runtime.PYTHON_3_12]
+    });
+
+    const extract = new lambda.Function(this, 'extract', {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: 'handler.handler', // Assumes your handler function is named 'handler' in a file named handler.py
+      code: lambda.Code.fromAsset(path.join(__dirname, 'extract')),
+      environment: {
+        USER_TABLE_NAME: usersTable.tableName,
+        BUCKET_NAME: promptBucket.bucketName,
+        AZURE_OPENAI_ENDPOINT: "https://aimet-dev.openai.azure.com/",
+        AZURE_OPENAI_KEY: "4084fe60da564e6d8e199a18bad4f836",
+        PROMPT_TABLE_NAME: promptTable.tableName,
+        RECORD_TABLE_NAME: postRecordTable.tableName
+      },
+      layers: [logicLayer],
+      timeout: cdk.Duration.seconds(15)
+    });
+    usersTable.grantReadData(extract); 
+    promptBucket.grantRead(extract);
+    promptTable.grantReadData(extract);
+    postRecordTable.grantWriteData(extract);
 
     // Provision a signup lambda function
     const signup = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'signup', {
@@ -126,10 +175,10 @@ export class DmeenApp extends cdk.Stack {
     const DmeenApi = new cdk.aws_apigateway.RestApi(this, 'DmeenApi', {});
 
     // Create an authorizer based on the user pool
-    const authorizer = new cdk.aws_apigateway.CognitoUserPoolsAuthorizer(this, 'DmeenAuthorizer', {
-      cognitoUserPools: [userPool],
-      identitySource: 'method.request.header.Authorization',
-    });
+    // const authorizer = new cdk.aws_apigateway.CognitoUserPoolsAuthorizer(this, 'DmeenAuthorizer', {
+    //   cognitoUserPools: [userPool],
+    //   identitySource: 'method.request.header.Authorization',
+    // });
 
     // Add routes to the API
     // Authentications
@@ -138,11 +187,13 @@ export class DmeenApp extends cdk.Stack {
     authResource.addResource('sign-in').addMethod('POST', new cdk.aws_apigateway.LambdaIntegration(signin));
     authResource.addResource('confirm').addMethod('POST', new cdk.aws_apigateway.LambdaIntegration(confirm));
 
-    DmeenApi.root.addResource('listGroup').addMethod('GET', new cdk.aws_apigateway.LambdaIntegration(listGroup));
+    DmeenApi.root.addResource('listGroups').addMethod('GET', new cdk.aws_apigateway.LambdaIntegration(listGroups));
     // Create a new secret route, triggering the secret Lambda, and protected by the authorizer
-    DmeenApi.root.addResource('secret').addMethod('GET', new cdk.aws_apigateway.LambdaIntegration(secretLambda), {
-      authorizer,
-      authorizationType: cdk.aws_apigateway.AuthorizationType.COGNITO,
-    });
+    DmeenApi.root.addResource('extract').addMethod('POST', new cdk.aws_apigateway.LambdaIntegration(extract), 
+    // {
+    //   authorizer,
+    //   authorizationType: cdk.aws_apigateway.AuthorizationType.COGNITO,
+    // }
+    );
   }
 }

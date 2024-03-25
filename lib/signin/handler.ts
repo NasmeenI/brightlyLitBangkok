@@ -9,12 +9,10 @@ export const handler = async (event: { body: string }): Promise<{ statusCode: nu
     return Promise.resolve({ statusCode: 400, body: 'Missing username or password' });
   }
 
-  const userPoolClientId = process.env.USER_POOL_CLIENT_ID;
-
   const result = await client.send(
     new InitiateAuthCommand({
       AuthFlow: 'USER_PASSWORD_AUTH',
-      ClientId: userPoolClientId,
+      ClientId: process.env.USER_POOL_CLIENT_ID,
       AuthParameters: {
         USERNAME: username,
         PASSWORD: password,
@@ -23,13 +21,12 @@ export const handler = async (event: { body: string }): Promise<{ statusCode: nu
   );
 
   const idToken = result.AuthenticationResult?.IdToken;
-
   if (idToken === undefined) {
     return Promise.resolve({ statusCode: 401, body: 'Authentication failed' });
   }
 
   return { 
     statusCode: 200, 
-    body: idToken
+    body: JSON.stringify({ accessToken : idToken })
   };
 };
