@@ -8,25 +8,28 @@ export const handler = async (event: { body: string }): Promise<{ statusCode: nu
     password?: string;
     email?: string;
   };
-
-  const userPoolClientId = process.env.USER_POOL_CLIENT_ID;
-
   if (username === undefined || password === undefined || email === undefined) {
       return Promise.resolve({ statusCode: 400, body: 'Missing username, email or password' });
   }
-  const schema = {
+
+  await client.send(new SignUpCommand({
     "Username": username,
     "Password": password,
-    "ClientId": userPoolClientId,
+    "ClientId": process.env.USER_POOL_CLIENT_ID,
     "UserAttributes": [
       {
         Name: 'email',
         Value: email,
       },
     ],
-  }
+  }));
 
-  const command = new SignUpCommand(schema);
-  const response = await client.send(command);
-  return { statusCode: 200, body: "user created" };
+  return { 
+    statusCode: 200, 
+    body: JSON.stringify({
+      username,
+      password,
+      email
+    }) 
+  };
 };

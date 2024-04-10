@@ -12,12 +12,10 @@ export const handler = async (event: { body: string }): Promise<{ statusCode: nu
     return Promise.resolve({ statusCode: 400, body: 'Missing username or confirmation code' });
   }
 
-  const userPoolClientId = process.env.USER_POOL_CLIENT_ID;
-
   // confirm in user pool client
   await client.send(
     new ConfirmSignUpCommand({
-      ClientId: userPoolClientId,
+      ClientId: process.env.USER_POOL_CLIENT_ID,
       Username: username,
       ConfirmationCode: code,
     }),
@@ -27,7 +25,7 @@ export const handler = async (event: { body: string }): Promise<{ statusCode: nu
   const result = await client.send(
     new InitiateAuthCommand({
       AuthFlow: 'USER_PASSWORD_AUTH',
-      ClientId: userPoolClientId,
+      ClientId: process.env.USER_POOL_CLIENT_ID,
       AuthParameters: {
         USERNAME: username,
         PASSWORD: password,
@@ -57,5 +55,11 @@ export const handler = async (event: { body: string }): Promise<{ statusCode: nu
     }),
   );
 
-  return { statusCode: 200, body: 'User confirmed' };
+  return { 
+    statusCode: 200, 
+    body: JSON.stringify({
+      username,
+      token: 10
+    })
+  };
 };
