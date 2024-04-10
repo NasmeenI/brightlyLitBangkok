@@ -3,6 +3,7 @@ import boto3
 import asyncio
 import os
 import uuid
+import jwt
 from aimet_feature_extraction import getMultipleChatCompletionMessage
 
 async def run_gpt(input):
@@ -14,17 +15,44 @@ async def run_gpt(input):
 # group_flag : 
 
 def handler(event: any, context: any):
-    body = json.loads(event["body"])
-    dynamodb = boto3.resource("dynamodb")
+    # Encode access_token to sub and username
+    token = event['headers'].get('Authorization').split(' ')[1]
+    decoded = jwt.decode(token, key=None, algorithms=['HS256'], options={"verify_signature": False})
 
+    sub = decoded.get('sub')
+    username = decoded.get('cognito:username')
+
+    body = json.loads(event["body"])
+
+    # Initial dynamoDB    
+    dynamodb = boto3.resource("dynamodb")
+    
+    # User table
+    user_table_name = os.getenv("USER_TABLE_NAME")
+    user_table = dynamodb.Table(user_table_name)
+    user = user_table.get_item(Key={'PK': sub, 'SK': username})
+    if(user['Item']['token'] == 0):
+        return {
+            "statusCode": 200, 
+            "body": json.dumps({"Error" : "Your token is not enough"})
+        }
+    user_table.update_item(
+        Key={'PK': sub, 'SK': username},
+        UpdateExpression="set #tk = #tk - :val",
+        ExpressionAttributeValues={":val": 1},
+        ExpressionAttributeNames={"#tk": "token"},
+        ReturnValues="UPDATED_NEW",
+    )
+
+    # Prompt table 
     prompt_table_name = os.getenv("PROMPT_TABLE_NAME")
     prompt_table = dynamodb.Table(prompt_table_name)
-
     prompt = prompt_table.get_item(Key={"PK": "1"})
     role_system = bytes(prompt["Item"]["system"], "utf-8").decode("utf-8")
     role_user = bytes(prompt["Item"]["user"], "utf-8").decode("utf-8")
     role_assistant = bytes(prompt["Item"]["assistant"], "utf-8").decode("utf-8")
 
+    # Execute promtp
     inputs = [
         {
             "messages": [
@@ -45,6 +73,7 @@ def handler(event: any, context: any):
     loop = asyncio.new_event_loop()
     result = loop.run_until_complete(run_gpt(inputs))
     
+    # Record table
     postId = str(uuid.uuid4())
     record_table_name = os.getenv("RECORD_TABLE_NAME")
     record_table = dynamodb.Table(record_table_name)

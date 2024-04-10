@@ -85,17 +85,17 @@ export class DmeenApp extends cdk.Stack {
       handler: 'handler.handler', // Assumes your handler function is named 'handler' in a file named handler.py
       code: lambda.Code.fromAsset(path.join(__dirname, 'extract')),
       environment: {
-        USER_TABLE_NAME: usersTable.tableName,
-        // BUCKET_NAME: libBucket.bucketName,
         AZURE_OPENAI_ENDPOINT: "https://aimet-dev.openai.azure.com/",
         AZURE_OPENAI_KEY: "4084fe60da564e6d8e199a18bad4f836",
         PROMPT_TABLE_NAME: promptTable.tableName,
-        RECORD_TABLE_NAME: postRecordTable.tableName
+        RECORD_TABLE_NAME: postRecordTable.tableName,
+        USER_TABLE_NAME: usersTable.tableName,
+        // BUCKET_NAME: libBucket.bucketName,
       },
       layers: [logicLayer],
       timeout: cdk.Duration.seconds(15),
     });
-    usersTable.grantReadData(extract); 
+    usersTable.grantReadWriteData(extract); 
     // promptBucket.grantRead(extract);
     promptTable.grantReadData(extract);
     postRecordTable.grantWriteData(extract);
