@@ -64,14 +64,35 @@ export class DmeenApp extends cdk.Stack {
     }); 
 
     // ------  Lambda Functions  ------
-    const listGroups = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'listGroups', {
-      entry: path.join(__dirname, 'listGroups', 'handler.ts'),
+    const getFlagGroup = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'getFlagGroup', {
+      entry: path.join(__dirname, 'flagGroup/getFlagGroup', 'handler.ts'),
       handler: 'handler',
       environment: {
         FLAG_TABLE_NAME: flagsTable.tableName, // VERY IMPORTANT
       },
+      timeout: cdk.Duration.seconds(15),
     });
-    flagsTable.grantReadData(listGroups);
+    flagsTable.grantReadData(getFlagGroup);
+
+    const createFlagGroup = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'createFlagGroup', {
+      entry: path.join(__dirname, 'flagGroup/createFlagGroup', 'handler.ts'),
+      handler: 'handler',
+      environment: {
+        FLAG_TABLE_NAME: flagsTable.tableName, // VERY IMPORTANT
+      },
+      timeout: cdk.Duration.seconds(15),
+    });
+    flagsTable.grantWriteData(createFlagGroup);
+
+    const queryFlagGroup = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'queryFlagGroup', {
+      entry: path.join(__dirname, 'flagGroup/queryFlagGroup', 'handler.ts'),
+      handler: 'handler',
+      environment: {
+        FLAG_TABLE_NAME: flagsTable.tableName, // VERY IMPORTANT
+      },
+      timeout: cdk.Duration.seconds(15),
+    });
+    flagsTable.grantReadData(queryFlagGroup);
 
     const extract = new lambda.Function(this, 'extract', {
       runtime: lambda.Runtime.PYTHON_3_12,
@@ -162,8 +183,11 @@ export class DmeenApp extends cdk.Stack {
     authResource.addResource('sign-up').addMethod('POST', new cdk.aws_apigateway.LambdaIntegration(signup));
     authResource.addResource('sign-in').addMethod('POST', new cdk.aws_apigateway.LambdaIntegration(signin));
     authResource.addResource('confirm').addMethod('POST', new cdk.aws_apigateway.LambdaIntegration(confirm));
-
-    DmeenApi.root.addResource('listGroups').addMethod('GET', new cdk.aws_apigateway.LambdaIntegration(listGroups));
+    // FlagGroups
+    const flagGroupResource = DmeenApi.root.addResource('flagGroup');
+    flagGroupResource.addMethod('GET', new cdk.aws_apigateway.LambdaIntegration(getFlagGroup));
+    flagGroupResource.addMethod('POST', new cdk.aws_apigateway.LambdaIntegration(createFlagGroup));
+    DmeenApi.root.addResource('queryFlagGroup').addMethod('POST', new cdk.aws_apigateway.LambdaIntegration(queryFlagGroup));
     // Create a new secret route, triggering the secret Lambda, and protected by the authorizer
     DmeenApi.root.addResource('extract').addMethod('POST', new cdk.aws_apigateway.LambdaIntegration(extract), {
       authorizer,

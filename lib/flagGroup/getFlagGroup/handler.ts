@@ -1,10 +1,9 @@
-import { DynamoDBClient, GetItemCommand, QueryCommand } from '@aws-sdk/client-dynamodb';
+import { DynamoDBClient, QueryCommand } from '@aws-sdk/client-dynamodb';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 
 const client = new DynamoDBClient({});
 
 export const handler = async (): Promise<{ statusCode: number; body: string }> => {
-
   const params = {
     TableName: process.env.FLAG_TABLE_NAME,
     KeyConditionExpression: 'PK = :pk',
