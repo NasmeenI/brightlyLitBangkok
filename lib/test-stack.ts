@@ -74,12 +74,6 @@ export class DmeenApp extends cdk.Stack {
     });
     flagsTable.grantReadData(listGroups); // VERY IMPORTANT
 
-    const logicLayer = new lambda.LayerVersion(this, 'python-lib', {
-      removalPolicy: RemovalPolicy.RETAIN,
-      code: lambda.Code.fromAsset(path.join(__dirname, 'extract')),
-      compatibleArchitectures: [lambda.Architecture.X86_64, lambda.Architecture.ARM_64],
-    });
-
     const extract = new lambda.Function(this, 'extract', {
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: 'handler.handler', // Assumes your handler function is named 'handler' in a file named handler.py
@@ -90,15 +84,15 @@ export class DmeenApp extends cdk.Stack {
         PROMPT_TABLE_NAME: promptTable.tableName,
         RECORD_TABLE_NAME: postRecordTable.tableName,
         USER_TABLE_NAME: usersTable.tableName,
-        // BUCKET_NAME: libBucket.bucketName,
       },
-      layers: [logicLayer],
       timeout: cdk.Duration.seconds(15),
     });
     usersTable.grantReadWriteData(extract); 
-    // promptBucket.grantRead(extract);
     promptTable.grantReadData(extract);
     postRecordTable.grantWriteData(extract);
+    extract.addLayers(
+      lambda.LayerVersion.fromLayerVersionArn(this, 'python-lib', 'arn:aws:lambda:ap-southeast-1:143492957817:layer:python-lib:1')
+    )
 
     // Provision a signup lambda function
     const signup = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'signup', {
