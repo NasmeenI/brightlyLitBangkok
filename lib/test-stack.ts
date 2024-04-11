@@ -2,7 +2,6 @@ import * as cdk from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import path from 'path';
 import { Construct } from 'constructs';
-import { RemovalPolicy } from 'aws-cdk-lib';
 
 export class DmeenApp extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -69,10 +68,10 @@ export class DmeenApp extends cdk.Stack {
       entry: path.join(__dirname, 'listGroups', 'handler.ts'),
       handler: 'handler',
       environment: {
-        FLAG_TABLE_NAME: flagsTable.tableName
+        FLAG_TABLE_NAME: flagsTable.tableName, // VERY IMPORTANT
       },
     });
-    flagsTable.grantReadData(listGroups); // VERY IMPORTANT
+    flagsTable.grantReadData(listGroups);
 
     const extract = new lambda.Function(this, 'extract', {
       runtime: lambda.Runtime.PYTHON_3_12,
@@ -91,7 +90,7 @@ export class DmeenApp extends cdk.Stack {
     promptTable.grantReadData(extract);
     postRecordTable.grantWriteData(extract);
     extract.addLayers(
-      lambda.LayerVersion.fromLayerVersionArn(this, 'python-lib', 'arn:aws:lambda:ap-southeast-1:143492957817:layer:python-lib:1')
+      lambda.LayerVersion.fromLayerVersionArn(this, 'python-lib-dmeen-1', 'arn:aws:lambda:ap-southeast-1:913195921926:layer:python-lib-dmeen-1:1')
     )
 
     // Provision a signup lambda function

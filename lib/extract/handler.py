@@ -31,6 +31,7 @@ def handler(event: any, context: any):
     user_table_name = os.getenv("USER_TABLE_NAME")
     user_table = dynamodb.Table(user_table_name)
     user = user_table.get_item(Key={'PK': sub, 'SK': username})
+    print(user['Item']['token'])
     if(user['Item']['token'] == 0):
         return {
             "statusCode": 200, 
