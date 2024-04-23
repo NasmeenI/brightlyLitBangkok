@@ -2,10 +2,19 @@ import * as cdk from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import path from 'path';
 import { Construct } from 'constructs';
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import dotenv from 'dotenv';
+dotenv.config();
 
 export class DmeenApp extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+
+    const vpc = new ec2.Vpc(this, 'DMEEN-vpc', {
+      ipAddresses: ec2.IpAddresses.cidr('10.0.0.0/16'),
+      natGateways: 1,
+      maxAzs: 3,
+    });
 
     // ------  Cognito  ------
     const userPool = new cdk.aws_cognito.UserPool(this, 'DmeenUserPool', {
@@ -45,6 +54,7 @@ export class DmeenApp extends cdk.Stack {
         type: cdk.aws_dynamodb.AttributeType.STRING,
       },
       billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
     });  
     
     const promptTable = new cdk.aws_dynamodb.Table(this, 'Prompt', {
@@ -71,6 +81,10 @@ export class DmeenApp extends cdk.Stack {
         FLAG_TABLE_NAME: flagsTable.tableName, // VERY IMPORTANT
       },
       timeout: cdk.Duration.seconds(15),
+      vpc,
+      vpcSubnets: {
+        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+      },
     });
     flagsTable.grantReadData(getFlagGroup);
 
@@ -81,6 +95,10 @@ export class DmeenApp extends cdk.Stack {
         FLAG_TABLE_NAME: flagsTable.tableName, // VERY IMPORTANT
       },
       timeout: cdk.Duration.seconds(15),
+      vpc,
+      vpcSubnets: {
+        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+      },
     });
     flagsTable.grantWriteData(createFlagGroup);
 
@@ -91,27 +109,35 @@ export class DmeenApp extends cdk.Stack {
         FLAG_TABLE_NAME: flagsTable.tableName, // VERY IMPORTANT
       },
       timeout: cdk.Duration.seconds(15),
+      vpc,
+      vpcSubnets: {
+        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+      },
     });
     flagsTable.grantReadData(queryFlagGroup);
-
+    
     const extract = new lambda.Function(this, 'extract', {
       runtime: lambda.Runtime.PYTHON_3_12,
-      handler: 'handler.handler', // Assumes your handler function is named 'handler' in a file named handler.py
+      handler: 'handler.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, 'extract')),
       environment: {
-        AZURE_OPENAI_ENDPOINT: "https://aimet-dev.openai.azure.com/",
-        AZURE_OPENAI_KEY: "4084fe60da564e6d8e199a18bad4f836",
+        AZURE_OPENAI_ENDPOINT: String(process.env.AZURE_OPENAI_ENDPOINT),
+        AZURE_OPENAI_KEY: String(process.env.AZURE_OPENAI_KEY),
         PROMPT_TABLE_NAME: promptTable.tableName,
         RECORD_TABLE_NAME: postRecordTable.tableName,
         USER_TABLE_NAME: usersTable.tableName,
       },
       timeout: cdk.Duration.seconds(15),
+      vpc,
+      vpcSubnets: {
+        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+      },
     });
     usersTable.grantReadWriteData(extract); 
     promptTable.grantReadData(extract);
     postRecordTable.grantWriteData(extract);
     extract.addLayers(
-      lambda.LayerVersion.fromLayerVersionArn(this, 'python-lib-dmeen-1', 'arn:aws:lambda:ap-southeast-1:913195921926:layer:python-lib-dmeen-1:1')
+      lambda.LayerVersion.fromLayerVersionArn(this, String(process.env.LAMBDA_LAYER_NAME), String(process.env.LAMBDA_LAYER_ARN))
     )
 
     // Provision a signup lambda function
@@ -120,6 +146,10 @@ export class DmeenApp extends cdk.Stack {
       handler: 'handler',
       environment: {
         USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+      },
+      vpc,
+      vpcSubnets: {
+        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
       },
     });
     
@@ -139,6 +169,10 @@ export class DmeenApp extends cdk.Stack {
         USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
         USER_TABLE_NAME: usersTable.tableName
       },
+      vpc,
+      vpcSubnets: {
+        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+      },
     });
     
     // Give the lambda function the permission to confirm users
@@ -156,6 +190,10 @@ export class DmeenApp extends cdk.Stack {
       handler: 'handler',
       environment: {
         USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+      },
+      vpc,
+      vpcSubnets: {
+        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
       },
     });
 

@@ -13,7 +13,7 @@
   "devDependencies": {
     "@types/jest": "^29.5.12",
     "@types/jsonwebtoken": "^9.0.6",
-    "@types/node": "20.11.19",
+    "@types/node": "^20.12.7",
     "@types/uuid": "^9.0.8",
     "aws-cdk": "2.131.0",
     "esbuild": "^0.20.1",
@@ -30,6 +30,7 @@
     "@aws-sdk/util-dynamodb": "^3.552.0",
     "aws-cdk-lib": "2.131.0",
     "constructs": "^10.0.0",
+    "dotenv": "^16.4.5",
     "js-tiktoken": "^1.0.10",
     "jsonwebtoken": "^9.0.2",
     "jwt-decode": "^4.0.0",

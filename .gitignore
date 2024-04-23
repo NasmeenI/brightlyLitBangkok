@@ -6,3 +6,11 @@ node_modules
 # CDK asset staging directory
 .cdk.staging
 cdk.out
+
+# OS
+.DS_Store
+
+# Exclude all local env files
+.env
+.env.*
+!.env.example
