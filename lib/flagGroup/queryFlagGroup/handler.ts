@@ -22,8 +22,12 @@ export const handler = async (event: {
   assert(enc.decode(enc.encode("token test")) === "token test");
   
   // Input cost
+  const tokens = enc.encode(message);
   let tokenCount = 0;
-  enc.encode(message).forEach(x => tokenCount += x);
+
+  tokens.forEach(x => {
+    tokenCount += x;
+  });
 
   // Output cost
   const params = {
@@ -42,7 +46,14 @@ export const handler = async (event: {
     };
   }
 
-  const allItems = data.Items?.map(item => unmarshall(item)['noteContent']);
+  const attributeKeys = ["name", "flags"];
+
+  const allItems = data.Items?.map(item => {
+    return Object.fromEntries(
+      attributeKeys.map(key => [key, unmarshall(item)[key]])
+    );
+  });
+
   if(allItems === undefined) {
     return {
       statusCode: 404,
@@ -51,13 +62,15 @@ export const handler = async (event: {
   }
 
   for(let i = 0; i < allItems.length; i++) {
+    const tokens = enc.encode(JSON.stringify(allItems[i]));
     let itemTokenCount = 0;
-    enc.encode(allItems[i]).forEach(y => itemTokenCount += y)
+    tokens.forEach(y => {
+      itemTokenCount += y;
+    })
 
     // gpt-3.5-turbo-0125 : cost-effective
     const totalGroupCost = (tokenCount + itemTokenCount) * 0.5 / 1e6;
 
-    allItems[i] = JSON.parse(allItems[i]);
     const copy = Object.assign(allItems[i], {"cost": totalGroupCost});
     allItems[i] = copy;
   }

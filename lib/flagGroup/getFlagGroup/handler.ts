@@ -1,4 +1,4 @@
-import { DynamoDBClient, QueryCommand } from '@aws-sdk/client-dynamodb';
+import { DynamoDBClient, GetItemCommand, QueryCommand } from '@aws-sdk/client-dynamodb';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 
 const client = new DynamoDBClient({});
@@ -22,18 +22,19 @@ export const handler = async (): Promise<{ statusCode: number; body: string }> =
       };
     }
 
-    // Get array of noteContent for each items
-    const allItems = data.Items?.map(item => unmarshall(item)['noteContent']);
+    const attributeKeys = ["name", "flags"];
+
+    // Get array of name and flags for each items
+    const allItems = data.Items?.map(item => {
+      return Object.fromEntries(
+        attributeKeys.map(key => [key, unmarshall(item)[key]])
+      );
+    });
     if(allItems === undefined) {
       return {
         statusCode: 404,
         body: 'not found items',
       };
-    }
-
-    // convert to JSON Object
-    for(let i = 0; i < allItems.length; i++) {
-      allItems[i] = JSON.parse(allItems[i]);
     }
 
     return {

@@ -3,10 +3,15 @@ import { v4 as uuidv4 } from 'uuid';
 
 const client = new DynamoDBClient({});
 
+interface FlagGroups {
+  name: string;
+  flags: string[];
+}
+
 export const handler = async (event: {
   body: string;
 }): Promise<{ statusCode: number; body: string }> => {
-  const content = event.body;
+  const content : FlagGroups = JSON.parse(event.body);
 
   if (content === undefined) {
     return {
@@ -17,16 +22,18 @@ export const handler = async (event: {
 
   const flagGroupsId = uuidv4();
 
-  await client.send(
-    new PutItemCommand({
-      TableName: process.env.FLAG_TABLE_NAME,
-      Item: {
-        PK: { S: "flagGroups" },
-        SK: { S: flagGroupsId },
-        noteContent: { S: content }, // As String
-      },
-    }),
-  );
+  const params = {
+    TableName: process.env.FLAG_TABLE_NAME,
+    Item: {
+      PK: { S: "flagGroups" },
+      SK: { S: flagGroupsId },
+      name: { S: content.name }, // Group name
+      flags: { L: content.flags.map(str => ({ S : str})) } // Flags
+    },
+  };
+
+  await client.send(new PutItemCommand(params));
+  
   return {
     statusCode: 200,
     body: JSON.stringify({ flagGroupsId }),
