@@ -8,18 +8,7 @@ interface brightly {
   place: string;
 }
 
-export const handler = async (event: {
-  body: string
-}): Promise<{ statusCode: number; body: string }> => {
-  const body: brightly = JSON.parse(event.body);
-
-  if (body === undefined) {
-    return {
-      statusCode: 400,
-      body: 'bad request',
-    };
-  }
-
+export const handler = async (): Promise<{ statusCode: number; body: string }> => {
   const date = new Date();
   const formattedDate = date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -38,11 +27,15 @@ export const handler = async (event: {
     };
   }
 
-  const qsLight = getItemResponse.Item.qsLight.L;
+  const data = getItemResponse.Item.data.L;
+  const currentData = data[data.length - 1].M;
+  const pir = parseInt(currentData.pir.N?.toString());
+  const light = parseInt(currentData.light.N?.toString());
 
-
+  let result = false;
+  if(pir > 10 && pir < 20 && light > 10 && light < 20) result = true;
   return {
     statusCode: 200,
-    body: JSON.stringify({ "test": "test" }),
+    body: JSON.stringify({ result: result }),
   };
 };

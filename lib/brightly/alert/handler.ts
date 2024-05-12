@@ -2,7 +2,7 @@ import { DynamoDBClient, GetItemCommand } from '@aws-sdk/client-dynamodb';
 
 const client = new DynamoDBClient({});
 
-export const handler = async (): Promise<{ statusCode: number; body: string }> => {
+export const handler = async () => {
   const date = new Date();
   const formattedDate = date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -30,12 +30,25 @@ export const handler = async (): Promise<{ statusCode: number; body: string }> =
     };
   }
 
+  const timestampBefore = currentStatus.timestamp.N?.toString() - 1 * 60 * 1000;
+  let sumPir = 0;
+  for(let i=data.length - 1; i >= 0; i--) {
+    if(parseInt(data[i].M.timestamp.N.toString()) <= timestampBefore || i == 0) {
+      sumPir = sumPir / (data.length - i) * 100;
+      break;
+    }
+    sumPir += parseInt(data[i].M.pir.N?.toString());
+  }
+
   let alertPIR = false, alertLight = false;
-  if(parseInt(currentStatus.pir.N) > 15 || parseInt(currentStatus.pir.N) < 0) alertPIR = true;
+  if(sumPir > 15 || sumPir < 0) alertPIR = true;
   if(parseInt(currentStatus.light.N) > 15 || parseInt(currentStatus.light.N) < 0) alertLight = true;
 
   return {
     statusCode: 200,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+    },
     body: JSON.stringify({ 
         alertPir: alertPIR, 
         alertLight: alertLight,

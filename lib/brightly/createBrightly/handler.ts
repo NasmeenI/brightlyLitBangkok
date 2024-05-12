@@ -119,11 +119,6 @@ export const handler = async (event: {
         },
       },
     }))
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ newItem }),
-    };
   }
   else {
     await client.send(new UpdateItemCommand({
@@ -148,7 +143,7 @@ export const handler = async (event: {
               {
                 M: {
                   light: { N: body.light.toString() },
-                  sensor: { N: body.pir.toString() },
+                  pir: { N: body.pir.toString() },
                   timestamp: { N: Date.now().toString() }
                 }
               }
@@ -167,10 +162,9 @@ export const handler = async (event: {
         },
       }),
     );
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ newItem }),
-    };
   }
+  return {
+    statusCode: 200,
+    body: JSON.stringify({ result: "success" }),
+  };
 };

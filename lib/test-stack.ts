@@ -2,6 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import path from 'path';
 import { Construct } from 'constructs';
 import dotenv from 'dotenv';
+import { Cors } from 'aws-cdk-lib/aws-apigateway';
 dotenv.config();
 
 export class brightlyLitBangkok extends cdk.Stack {
@@ -80,7 +81,14 @@ export class brightlyLitBangkok extends cdk.Stack {
 
     // ------  API Gatway  ------
     // Create a new API
-    const brightlyLitBangkokAPI = new cdk.aws_apigateway.RestApi(this, 'brightlyLitBangkokAPI', {});
+    const brightlyLitBangkokAPI = new cdk.aws_apigateway.RestApi(this, 'brightlyLitBangkokAPI', {
+      restApiName: "brightlyLitBangkokAPI",
+      defaultCorsPreflightOptions: {
+        allowOrigins: ["*"],
+        allowMethods: ["OPTIONS", "GET", "POST", "PUT", "PATCH", "DELETE"],
+        allowHeaders: Cors.DEFAULT_HEADERS,
+      },
+    });
 
     // Add routes to the API
     const brightlyResource = brightlyLitBangkokAPI.root.addResource('brightly');
