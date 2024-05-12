@@ -126,6 +126,17 @@ export const handler = async (event: {
     };
   }
   else {
+    await client.send(new UpdateItemCommand({
+      TableName: process.env.GLOBAL_TABLE_NAME,
+      Key: {
+        'PK': { S: 'current_date' },
+      },
+      UpdateExpression: 'SET current_date = :val',
+      ExpressionAttributeValues: {
+        ':val': { S: formattedDate },
+      },
+    }));
+
     const newItem = await client.send(
       new PutItemCommand({
         TableName: process.env.BRIGHTLY_TABLE_NAME,
