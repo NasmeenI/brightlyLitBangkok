@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
-import { DmeenApp } from '../lib/test-stack';
+import { brightlyLitBangkok } from '../lib/test-stack';
 
 const app = new cdk.App();
-new DmeenApp(app, 'DmeenApp', {
+new brightlyLitBangkok(app, 'brightlyLitBangkok', {
   /* If you don't specify 'env', this stack will be environment-agnostic.
    * Account/Region-dependent features and context lookups will not work,
    * but a single synthesized template can be deployed anywhere. */

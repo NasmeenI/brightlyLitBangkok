@@ -1,235 +1,94 @@
 import * as cdk from 'aws-cdk-lib';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
 import path from 'path';
 import { Construct } from 'constructs';
-import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import dotenv from 'dotenv';
 dotenv.config();
 
-export class DmeenApp extends cdk.Stack {
+export class brightlyLitBangkok extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    const vpc = new ec2.Vpc(this, 'DMEEN-vpc', {
-      ipAddresses: ec2.IpAddresses.cidr('10.0.0.0/16'),
-      natGateways: 1,
-      maxAzs: 3,
+    // ------  DynamoDB  ------    
+    const brightlyTable = new cdk.aws_dynamodb.Table(this, 'brightlyTable', {
+      partitionKey: {
+        name: 'PK', // date
+        type: cdk.aws_dynamodb.AttributeType.STRING,
+      },
+      billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST,
     });
 
-    // ------  Cognito  ------
-    const userPool = new cdk.aws_cognito.UserPool(this, 'DmeenUserPool', {
-      selfSignUpEnabled: true,
-      autoVerify: {
-        email: true,
+    const globalValeTable = new cdk.aws_dynamodb.Table(this, 'globalValeTable', {
+      partitionKey: {
+        name: 'PK', 
+        type: cdk.aws_dynamodb.AttributeType.STRING,
       },
+      billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST,
     });
-
-    const userPoolClient = new cdk.aws_cognito.UserPoolClient(this, 'DmeenUserPoolClient', {
-      userPool,
-      authFlows: {
-        userPassword: true,
-      },
-    });
-
-    // ------  DynamoDB  ------
-    const usersTable = new cdk.aws_dynamodb.Table(this, 'User', {
-      partitionKey: {
-        name: 'PK', // userId
-        type: cdk.aws_dynamodb.AttributeType.STRING,
-      },
-      sortKey: {
-        name: 'SK', // username
-        type: cdk.aws_dynamodb.AttributeType.STRING,
-      },
-      billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST,
-    });   
-
-    const flagsTable = new cdk.aws_dynamodb.Table(this, 'Flag', {
-      partitionKey: {
-        name: 'PK', // flagId
-        type: cdk.aws_dynamodb.AttributeType.STRING,
-      },
-      sortKey: {
-        name: 'SK', // group_name
-        type: cdk.aws_dynamodb.AttributeType.STRING,
-      },
-      billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-    });  
-    
-    const promptTable = new cdk.aws_dynamodb.Table(this, 'Prompt', {
-      partitionKey: {
-        name: 'PK', // version
-        type: cdk.aws_dynamodb.AttributeType.STRING,
-      },
-      billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST,
-    });  
-
-    const postRecordTable = new cdk.aws_dynamodb.Table(this, 'PostRecord', {
-      partitionKey: {
-        name: 'PK', // postId
-        type: cdk.aws_dynamodb.AttributeType.STRING,
-      },
-      billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST,
-    }); 
 
     // ------  Lambda Functions  ------
-    const getFlagGroup = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'getFlagGroup', {
-      entry: path.join(__dirname, 'flagGroup/getFlagGroup', 'handler.ts'),
+    const getBrightly = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'getBrightly', {
+      entry: path.join(__dirname, 'brightly/getBrightly', 'handler.ts'),
       handler: 'handler',
       environment: {
-        FLAG_TABLE_NAME: flagsTable.tableName, // VERY IMPORTANT
+        BRIGHTLY_TABLE_NAME: brightlyTable.tableName,
       },
       timeout: cdk.Duration.seconds(15),
-      vpc,
-      vpcSubnets: {
-        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-      },
     });
-    flagsTable.grantReadData(getFlagGroup);
+    brightlyTable.grantReadData(getBrightly);
 
-    const createFlagGroup = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'createFlagGroup', {
-      entry: path.join(__dirname, 'flagGroup/createFlagGroup', 'handler.ts'),
+    const createBrightly = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'createBrightly', {
+      entry: path.join(__dirname, 'brightly/createBrightly', 'handler.ts'),
       handler: 'handler',
       environment: {
-        FLAG_TABLE_NAME: flagsTable.tableName, // VERY IMPORTANT
+        BRIGHTLY_TABLE_NAME: brightlyTable.tableName,
+        GLOBAL_TABLE_NAME: globalValeTable.tableName,
       },
       timeout: cdk.Duration.seconds(15),
-      vpc,
-      vpcSubnets: {
-        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-      },
     });
-    flagsTable.grantWriteData(createFlagGroup);
+    brightlyTable.grantReadWriteData(createBrightly);
+    globalValeTable.grantReadWriteData(createBrightly);
 
-    const queryFlagGroup = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'queryFlagGroup', {
-      entry: path.join(__dirname, 'flagGroup/queryFlagGroup', 'handler.ts'),
+    const getCurrentStatus = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'getCurrentStatus', {
+      entry: path.join(__dirname, 'brightly/getCurrentStatus', 'handler.ts'),
       handler: 'handler',
       environment: {
-        FLAG_TABLE_NAME: flagsTable.tableName, // VERY IMPORTANT
+        BRIGHTLY_TABLE_NAME: brightlyTable.tableName,
       },
       timeout: cdk.Duration.seconds(15),
-      vpc,
-      vpcSubnets: {
-        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-      },
     });
-    flagsTable.grantReadData(queryFlagGroup);
-    
-    const extract = new lambda.Function(this, 'extract', {
-      runtime: lambda.Runtime.PYTHON_3_12,
-      handler: 'handler.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, 'extract')),
+    brightlyTable.grantReadData(getCurrentStatus);
+
+    const getSpecifyStatus = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'getSpecifyStatus', {
+      entry: path.join(__dirname, 'brightly/getSpecifyStatus', 'handler.ts'),
+      handler: 'handler',
       environment: {
-        AZURE_OPENAI_ENDPOINT: String(process.env.AZURE_OPENAI_ENDPOINT),
-        AZURE_OPENAI_KEY: String(process.env.AZURE_OPENAI_KEY),
-        PROMPT_TABLE_NAME: promptTable.tableName,
-        RECORD_TABLE_NAME: postRecordTable.tableName,
-        USER_TABLE_NAME: usersTable.tableName,
+        BRIGHTLY_TABLE_NAME: brightlyTable.tableName,
       },
       timeout: cdk.Duration.seconds(15),
-      vpc,
-      vpcSubnets: {
-        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-      },
     });
-    usersTable.grantReadWriteData(extract); 
-    promptTable.grantReadData(extract);
-    postRecordTable.grantWriteData(extract);
-    extract.addLayers(
-      lambda.LayerVersion.fromLayerVersionArn(this, String(process.env.LAMBDA_LAYER_NAME), String(process.env.LAMBDA_LAYER_ARN))
-    )
+    brightlyTable.grantReadData(getSpecifyStatus);
 
-    // Provision a signup lambda function
-    const signup = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'signup', {
-      entry: path.join(__dirname, 'auth/signup', 'handler.ts'),
+    const alert = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'alert', {
+      entry: path.join(__dirname, 'brightly/alert', 'handler.ts'),
       handler: 'handler',
       environment: {
-        USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+        BRIGHTLY_TABLE_NAME: brightlyTable.tableName,
       },
-      vpc,
-      vpcSubnets: {
-        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-      },
+      timeout: cdk.Duration.seconds(15),
     });
-    
-    // Give the lambda function the permission to sign up users
-    signup.addToRolePolicy(
-      new cdk.aws_iam.PolicyStatement({
-        actions: ['cognito-idp:SignUp'],
-        resources: [userPool.userPoolArn],
-      }),
-    );
-    
-    // Provision a confirm lambda function
-    const confirm = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'confirm', {
-      entry: path.join(__dirname, 'auth/confirm', 'handler.ts'),
-      handler: 'handler',
-      environment: {
-        USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
-        USER_TABLE_NAME: usersTable.tableName
-      },
-      vpc,
-      vpcSubnets: {
-        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-      },
-    });
-    
-    // Give the lambda function the permission to confirm users
-    confirm.addToRolePolicy(
-      new cdk.aws_iam.PolicyStatement({
-        actions: ['cognito-idp:ConfirmSignUp'],
-        resources: [userPool.userPoolArn],
-      }),
-    );
-    usersTable.grantWriteData(confirm); // VERY IMPORTANT
-
-    // Provision a signin lambda function
-    const signin = new cdk.aws_lambda_nodejs.NodejsFunction(this, 'signin', {
-      entry: path.join(__dirname, 'auth/signin', 'handler.ts'),
-      handler: 'handler',
-      environment: {
-        USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
-      },
-      vpc,
-      vpcSubnets: {
-        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-      },
-    });
-
-    // Give the lambda function the permission to sign in users
-    signin.addToRolePolicy(
-      new cdk.aws_iam.PolicyStatement({
-        actions: ['cognito-idp:InitiateAuth'],
-        resources: [userPool.userPoolArn],
-      }),
-    );
+    brightlyTable.grantReadData(alert);
 
     // ------  API Gatway  ------
     // Create a new API
-    const DmeenApi = new cdk.aws_apigateway.RestApi(this, 'DmeenApi', {});
-
-    // Create an authorizer based on the user pool
-    const authorizer = new cdk.aws_apigateway.CognitoUserPoolsAuthorizer(this, 'DmeenAuthorizer', {
-      cognitoUserPools: [userPool],
-      identitySource: 'method.request.header.Authorization',
-    });
+    const brightlyLitBangkokAPI = new cdk.aws_apigateway.RestApi(this, 'brightlyLitBangkokAPI', {});
 
     // Add routes to the API
-    // Authentications
-    const authResource = DmeenApi.root.addResource('auth')
-    authResource.addResource('sign-up').addMethod('POST', new cdk.aws_apigateway.LambdaIntegration(signup));
-    authResource.addResource('sign-in').addMethod('POST', new cdk.aws_apigateway.LambdaIntegration(signin));
-    authResource.addResource('confirm').addMethod('POST', new cdk.aws_apigateway.LambdaIntegration(confirm));
-    // FlagGroups
-    const flagGroupResource = DmeenApi.root.addResource('flagGroup');
-    flagGroupResource.addMethod('GET', new cdk.aws_apigateway.LambdaIntegration(getFlagGroup));
-    flagGroupResource.addMethod('POST', new cdk.aws_apigateway.LambdaIntegration(createFlagGroup));
-    DmeenApi.root.addResource('queryFlagGroup').addMethod('POST', new cdk.aws_apigateway.LambdaIntegration(queryFlagGroup));
-    // Create a new secret route, triggering the secret Lambda, and protected by the authorizer
-    DmeenApi.root.addResource('extract').addMethod('POST', new cdk.aws_apigateway.LambdaIntegration(extract), {
-      authorizer,
-      authorizationType: cdk.aws_apigateway.AuthorizationType.COGNITO,
-    });
+    const brightlyResource = brightlyLitBangkokAPI.root.addResource('brightly');
+    brightlyResource.addMethod('GET', new cdk.aws_apigateway.LambdaIntegration(getBrightly));
+    brightlyResource.addMethod('POST', new cdk.aws_apigateway.LambdaIntegration(createBrightly));
+
+    brightlyLitBangkokAPI.root.addResource('getCurrentStatus').addMethod('GET', new cdk.aws_apigateway.LambdaIntegration(getCurrentStatus));
+    brightlyLitBangkokAPI.root.addResource('getSpecifyStatus').addResource('{specifyDate}').addMethod('GET', new cdk.aws_apigateway.LambdaIntegration(getSpecifyStatus));
+    brightlyLitBangkokAPI.root.addResource('alert').addMethod('GET', new cdk.aws_apigateway.LambdaIntegration(alert));
   }
 }
