@@ -39,7 +39,18 @@ export const handler = async (event: {
   }
   
   const date = new Date();
-  const formattedDate = date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const options: Intl.DateTimeFormatOptions = {
+    weekday: 'long' as const,
+    year: 'numeric' as const,
+    month: 'long' as const,
+    day: 'numeric' as const,
+    timeZone: 'Asia/Bangkok'
+  };
+  const formattedDate = new Intl.DateTimeFormat('en-US', options).format(date);
+
+  const timestampUTC = Date.now();
+  const timezoneOffset = 7 * 60 * 60 * 1000;
+  const timestampBangkok = timestampUTC + timezoneOffset;
 
   if(Item.current_date.S === formattedDate) {
     const getItemResponse = await client.send(
@@ -102,7 +113,7 @@ export const handler = async (event: {
               M: {
                 light: { N: body.light.toString() },
                 pir: { N: body.pir.toString() },
-                timestamp: { N: Date.now().toString() },
+                timestamp: { N: timestampBangkok.toString() },
               }
             }
           ]
@@ -144,7 +155,7 @@ export const handler = async (event: {
                 M: {
                   light: { N: body.light.toString() },
                   pir: { N: body.pir.toString() },
-                  timestamp: { N: Date.now().toString() }
+                  timestamp: { N: timestampBangkok.toString() }
                 }
               }
             ]
