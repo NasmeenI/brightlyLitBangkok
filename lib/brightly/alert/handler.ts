@@ -32,17 +32,17 @@ export const handler = async () => {
 
   const timestampBefore = currentStatus.timestamp.N?.toString() - 1 * 60 * 1000;
   let sumPir = 0;
-  for(let i=data.length - 1; i >= 0; i--) {
-    if(parseInt(data[i].M.timestamp.N.toString()) <= timestampBefore || i == 0) {
-      sumPir = sumPir / (data.length - i) * 100;
+  for(let i=data.length - 1; i >= data.length - 5; i--) {
+    if(parseInt(data[i].M.timestamp.N.toString()) <= timestampBefore || i == data.length - 5) {
+      sumPir = sumPir / 5 * 100;
       break;
     }
     sumPir += parseInt(data[i].M.pir.N?.toString());
   }
 
   let alertPIR = false, alertLight = false;
-  if(sumPir > 15 || sumPir < 0) alertPIR = true;
-  if(parseInt(currentStatus.light.N) > 15 || parseInt(currentStatus.light.N) < 0) alertLight = true;
+  if(sumPir > 30) alertPIR = true;
+  if(parseInt(currentStatus.light.N) < 800) alertLight = true;
 
   return {
     statusCode: 200,
